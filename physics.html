@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mechanics Phenomena Visualized</title>
+  <style>
+    /* ---------- Futuristic dark theme ---------- */
+    :root{
+      --bg:#030612;
+      --panel:rgba(10,18,38,0.55);
+      --panel-border:rgba(80,180,255,0.25);
+      --accent:#38e1ff;
+      --accent-2:#7c5cff;
+      --text:#cfe6ff;
+      --muted:#6f8bb0;
+      --danger:#ff5c7a;
+    }
+    *{ box-sizing:border-box; }
+    html,body{
+      margin:0; padding:0; height:100%;
+      background:radial-gradient(1200px 800px at 50% -10%, #0a1430 0%, var(--bg) 60%);
+      color:var(--text);
+      font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+      overflow:hidden;
+    }
+
+    /* ---------- Title bar ---------- */
+    .title-bar{
+      position:fixed; top:0; left:0; right:0; z-index:20;
+      height:52px; display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(180deg, rgba(8,14,32,0.92), rgba(8,14,32,0.55));
+      border-bottom:1px solid var(--panel-border);
+      backdrop-filter:blur(10px);
+      pointer-events:none;
+    }
+    .title-bar h1{
+      margin:0; font-size:1.05rem; letter-spacing:.22em; text-transform:uppercase;
+      font-weight:700;
+      background:linear-gradient(90deg,var(--accent),#9bd6ff,var(--accent-2));
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      text-shadow:0 0 18px rgba(56,225,255,0.25);
+    }
+    .title-bar .dot{
+      display:inline-block; width:8px; height:8px; border-radius:50%;
+      background:var(--accent); margin-right:12px;
+      box-shadow:0 0 10px var(--accent);
+      animation:pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse{ 0%,100%{opacity:.4;} 50%{opacity:1;} }
+
+    /* ---------- Canvas ---------- */
+    canvas#stage{
+      display:block; width:100vw; height:100vh;
+      cursor:crosshair;
+    }
+
+    /* ---------- Control panel (top-left) ---------- */
+    .controls{
+      position:fixed; top:68px; left:16px; z-index:30;
+      width:248px; padding:14px 14px 10px;
+      background:var(--panel);
+      border:1px solid var(--panel-border);
+      border-radius:12px;
+      backdrop-filter:blur(12px);
+      box-shadow:0 10px 40px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.03);
+      font-size:.82rem;
+    }
+    .controls h2{
+      margin:0 0 10px; font-size:.72rem; letter-spacing:.18em;
+      text-transform:uppercase; color:var(--accent); font-weight:700;
+    }
+    .ctrl{ margin-bottom:11px; }
+    .ctrl label{
+      display:flex; justify-content:space-between; align-items:center;
+      color:var(--muted); margin-bottom:4px; font-size:.74rem; letter-spacing:.04em;
+    }
+    .ctrl label b{ color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
+    .ctrl input[type=range]{
+      -webkit-appearance:none; appearance:none; width:100%; height:4px;
+      background:linear-gradient(90deg,var(--accent),var(--accent-2));
+      border-radius:4px; outline:none; cursor:pointer;
+    }
+    .ctrl input[type=range]::-webkit-slider-thumb{
+      -webkit-appearance:none; appearance:none;
+      width:14px; height:14px; border-radius:50%;
+      background:#fff; border:2px solid var(--accent);
+      box-shadow:0 0 8px rgba(56,225,255,0.8); cursor:pointer;
+    }
+    .ctrl input[type=range]::-moz-range-thumb{
+      width:14px; height:14px; border-radius:50%;
+      background:#fff; border:2px solid var(--accent);
+      box-shadow:0 0 8px rgba(56,225,255,0.8); cursor:pointer;
+    }
+
+    /* Toggles */
+    .toggles{ display:flex; flex-direction:column; gap:7px; margin:4px 0 12px; }
+    .toggle{
+      display:flex; align-items:center; justify-content:space-between;
+      color:var(--text); font-size:.8rem; cursor:pointer; user-select:none;
+    }
+    .switch{
+      position:relative; width:34px; height:18px; border-radius:10px;
+      background:rgba(120,150,190,0.25); border:1px solid var(--panel-border);
+      transition:background .2s; flex:none;
+    }
+    .switch::after{
+      content:""; position:absolute; top:1px; left:1px;
+      width:14px; height:14px; border-radius:50%; background:#9fb4cc;
+      transition:transform .2s, background .2s;
+    }
+    .toggle.on .switch{ background:linear-gradient(90deg,var(--accent),var(--accent-2)); }
+    .toggle.on .switch::after{ transform:translateX(16px); background:#fff; }
+
+    /* Buttons */
+    .btns{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    .btn{
+      appearance:none; border:1px solid var(--panel-border);
+      background:rgba(56,225,255,0.06); color:var(--text);
+      padding:7px 6px; border-radius:7px; cursor:pointer;
+      font-size:.76rem; font-weight:600; letter-spacing:.03em;
+      transition:all .15s;
+    }
+    .btn:hover{ background:rgba(56,225,255,0.16); border-color:var(--accent); color:#fff; }
+    .btn:active{ transform:translateY(1px); }
+    .btn.wide{ grid-column:1 / -1; }
+    .btn.danger{ color:var(--danger); border-color:rgba(255,92,122,0.4); }
+    .btn.danger:hover{ background:rgba(255,92,122,0.14); }
+
+    /* ---------- Ball counter (top-right) ---------- */
+    .counter{
+      position:fixed; top:68px; right:16px; z-index:30;
+      padding:10px 16px; min-width:120px; text-align:center;
+      background:var(--panel); border:1px solid var(--panel-border);
+      border-radius:12px; backdrop-filter:blur(12px);
+      box-shadow:0 10px 40px rgba(0,0,0,0.5);
+    }
+    .counter .n{
+      font-size:1.7rem; font-weight:800; line-height:1;
+      color:var(--accent); font-variant-numeric:tabular-nums;
+      text-shadow:0 0 14px rgba(56,225,255,0.5);
+    }
+    .counter .l{ font-size:.66rem; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); margin-top:3px; }
+
+    /* ---------- Instruction hint (bottom-center) ---------- */
+    .hint{
+      position:fixed; bottom:18px; left:50%; transform:translateX(-50%); z-index:30;
+      padding:8px 18px; border-radius:999px;
+      background:var(--panel); border:1px solid var(--panel-border);
+      backdrop-filter:blur(12px);
+      font-size:.78rem; color:var(--text); letter-spacing:.02em;
+      box-shadow:0 8px 30px rgba(0,0,0,0.5);
+      white-space:nowrap;
+    }
+    .hint kbd{
+      background:rgba(56,225,255,0.15); border:1px solid var(--panel-border);
+      border-bottom-width:2px; border-radius:4px;
+      padding:1px 6px; font-size:.72rem; color:var(--accent);
+      font-family:inherit;
+    }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width:640px){
+      .controls{ width:calc(100vw - 32px); }
+      .counter{ top:auto; bottom:60px; right:16px; }
+      .hint{ font-size:.7rem; padding:7px 12px; white-space:normal; max-width:90vw; text-align:center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="title-bar"><span class="dot"></span><h1>Mechanics Phenomena Visualized</h1></div>
+
+  <canvas id="stage"></canvas>
+
+  <!-- Control panel -->
+  <div class="controls">
+    <h2>Universe Controls</h2>
+
+    <div class="ctrl">
+      <label>Gravity strength <b id="v-g">1.00</b></label>
+      <input type="range" id="s-g" min="0" max="3" step="0.01" value="1">
+    </div>
+    <div class="ctrl">
+      <label>Expansion speed <b id="v-exp">0.00</b></label>
+      <input type="range" id="s-exp" min="0" max="0.02" step="0.0005" value="0">
+    </div>
+    <div class="ctrl">
+      <label>New ball mass <b id="v-mass">10</b></label>
+      <input type="range" id="s-mass" min="2" max="100" step="1" value="10">
+    </div>
+
+    <div class="toggles">
+      <div class="toggle on" id="t-trails">
+        <span>Motion trails</span><span class="switch"></span>
+      </div>
+      <div class="toggle on" id="t-merge">
+        <span>Merge on collision</span><span class="switch"></span>
+      </div>
+    </div>
+
+    <div class="btns">
+      <button class="btn wide" id="b-pause">⏸ Pause</button>
+      <button class="btn danger" id="b-clear">Clear</button>
+      <button class="btn" id="b-galaxy">Galaxy</button>
+      <button class="btn" id="b-binary">Binary</button>
+    </div>
+  </div>
+
+  <!-- Ball counter -->
+  <div class="counter">
+    <div class="n" id="count">0</div>
+    <div class="l">Bodies</div>
+  </div>
+
+  <!-- Instruction hint -->
+  <div class="hint">
+    Drag to launch a body &mdash; Click to place at rest &mdash; sliders tune G &amp; expansion
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    /* ---------- Canvas setup ---------- */
+    var canvas = document.getElementById("stage");
+    var ctx = canvas.getContext("2d");
+    var W = 0, H = 0, cx = 0, cy = 0;
+
+    var vignette = null;   // cached radial-gradient, rebuilt on resize
+    function resize() {
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      W = window.innerWidth;
+      H = window.innerHeight;
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.width = W + "px";
+      canvas.style.height = H + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      cx = W / 2;
+      cy = H / 2;
+      // rebuild the cached vignette for the new size
+      vignette = ctx.createRadialGradient(cx, cy, Math.min(W, H) * 0.3, cx, cy, Math.max(W, H) * 0.75);
+      vignette.addColorStop(0, "rgba(0,0,0,0)");
+      vignette.addColorStop(1, "rgba(0,0,0,0.55)");
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    /* ---------- Simulation state ---------- */
+    var balls = [];
+    // all mutable live in one object so toggle handlers update the same
+    // bindings the physics/render code reads (no window.* leak)
+    var state = {
+      G: 1.0,                 // gravity strength
+      expansion: 0.0,         // universe expansion (radial drift)
+      newMass: 10,            // mass of user-launched balls
+      trails: true,           // show motion trails
+      merging: true,          // merge on collision
+      paused: false
+    };
+
+    var SOFTENING = 30;       // gravity softening (avoids singularities)
+    var SUBSTEPS = 4;         // physics sub-steps per frame for stable orbits
+    var MAX_V = 1400;         // velocity cap to keep things sane
+
+    /* ---------- Ball ---------- */
+    function Ball(x, y, vx, vy, mass, hue) {
+      this.x = x; this.y = y;
+      this.vx = vx; this.vy = vy;
+      this.mass = mass;
+      this.r = radiusFromMass(mass);
+      // each body gets its own base hue; heavy bodies still render reddish
+      this.hue = (hue == null) ? Math.random() * 360 : hue;
+    }
+    function radiusFromMass(m) {
+      // radius grows with mass (2-D area scaling)
+      return 3.2 + Math.sqrt(m) * 1.15;
+    }
+
+    /* ---------- Color ----------
+       Each body has its own hue. Heavy bodies blend toward red (star-like),
+       light bodies keep their individual colour so small planets are multicoloured. */
+    function colorFor(b, maxMass) {
+      var t = Math.log(b.mass) / Math.log(Math.max(maxMass, 2));
+      t = Math.max(0, Math.min(1, t));
+      // blend the body's hue toward red (0) as it gets heavier
+      var hue = b.hue * (1 - t);
+      var sat = 65 + 30 * t;              // colourful → deep red
+      var light = 62 - 10 * t;            // bright → slightly darker red
+      return "hsl(" + hue.toFixed(1) + "," + sat.toFixed(0) + "%," + light.toFixed(0) + "%)";
+    }
+
+    /* ---------- Physics step ---------- */
+    function step(dt) {
+      var n = balls.length;
+      if (n === 0) return;
+
+      var ax = new Array(n);
+      var ay = new Array(n);
+      for (var k = 0; k < n; k++) { ax[k] = 0; ay[k] = 0; }
+
+      // pairwise gravity
+      for (var i = 0; i < n; i++) {
+        var bi = balls[i];
+        for (var j = i + 1; j < n; j++) {
+          var bj = balls[j];
+          var dx = bj.x - bi.x;
+          var dy = bj.y - bi.y;
+          var r2 = dx * dx + dy * dy + SOFTENING;
+          var r = Math.sqrt(r2);
+          var f = state.G * bi.mass * bj.mass / r2;
+          var fx = f * dx / r;
+          var fy = f * dy / r;
+          ax[i] += fx / bi.mass;
+          ay[i] += fy / bi.mass;
+          ax[j] -= fx / bj.mass;
+          ay[j] -= fy / bj.mass;
+        }
+      }
+
+      // universe expansion: scale positions outward from the center.
+      // Done on position (not velocity) so it drifts steadily instead of
+      // compounding into an exponential speed-up.
+      if (state.expansion !== 0) {
+        var k = state.expansion * dt;
+        for (var e = 0; e < n; e++) {
+          var b = balls[e];
+          b.x += (b.x - cx) * k;
+          b.y += (b.y - cy) * k;
+        }
+      }
+
+      // integrate (semi-implicit Euler)
+      for (var p = 0; p < n; p++) {
+        var bp = balls[p];
+        bp.vx += ax[p] * dt;
+        bp.vy += ay[p] * dt;
+        // clamp velocity
+        var sp = Math.hypot(bp.vx, bp.vy);
+        if (sp > MAX_V) { bp.vx = bp.vx / sp * MAX_V; bp.vy = bp.vy / sp * MAX_V; }
+        bp.x += bp.vx * dt;
+        bp.y += bp.vy * dt;
+      }
+
+      if (state.merging) handleCollisions();
+    }
+
+    function handleCollisions() {
+      var n = balls.length;
+      var removed = new Array(n);
+      for (var i = 0; i < n; i++) removed[i] = false;
+      var didRemove = false;
+
+      for (var i = 0; i < n; i++) {
+        if (removed[i]) continue;
+        for (var j = i + 1; j < n; j++) {
+          if (removed[j]) continue;
+          var a = balls[i], b = balls[j];
+          var dx = b.x - a.x, dy = b.y - a.y;
+          var d = Math.hypot(dx, dy);
+          if (d < a.r + b.r) {
+            // merge: conserve momentum and mass, center of mass position,
+            // and a circular (mass-weighted) mean of the parents' hues
+            var m = a.mass + b.mass;
+            var x = (a.x * a.mass + b.x * b.mass) / m;
+            var y = (a.y * a.mass + b.y * b.mass) / m;
+            var vx = (a.vx * a.mass + b.vx * b.mass) / m;
+            var vy = (a.vy * a.mass + b.vy * b.mass) / m;
+            var hue = circularHueMean(a.hue, a.mass, b.hue, b.mass);
+            balls[i] = new Ball(x, y, vx, vy, m, hue);
+            removed[j] = true;
+            didRemove = true;
+          }
+        }
+      }
+      if (didRemove) {
+        balls = balls.filter(function (_, idx) { return !removed[idx]; });
+      }
+    }
+
+    // mass-weighted mean of two hues, treating hue as a circular quantity
+    // (0° and 360° are the same colour, so a plain average is wrong).
+    function circularHueMean(h1, w1, h2, w2) {
+      var r1 = h1 * Math.PI / 180, r2 = h2 * Math.PI / 180;
+      var sx = w1 * Math.cos(r1) + w2 * Math.cos(r2);
+      var sy = w1 * Math.sin(r1) + w2 * Math.sin(r2);
+      var deg = Math.atan2(sy, sx) * 180 / Math.PI;
+      return deg < 0 ? deg + 360 : deg;
+    }
+
+    /* ---------- Render ---------- */
+    function render() {
+      // background / trail fade
+      if (state.trails) {
+        ctx.fillStyle = "rgba(3,6,18,0.18)";
+        ctx.fillRect(0, 0, W, H);
+      } else {
+        ctx.fillStyle = "#030612";
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      // subtle vignette (cached, rebuilt only on resize)
+      if (vignette) {
+        ctx.fillStyle = vignette;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      var maxMass = 1;
+      for (var mi = 0; mi < balls.length; mi++) if (balls[mi].mass > maxMass) maxMass = balls[mi].mass;
+
+      for (var i = 0; i < balls.length; i++) {
+        var b = balls[i];
+        var col = colorFor(b, maxMass);
+
+        // glow halo
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r * 2.4, 0, Math.PI * 2);
+        var glow = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r * 2.4);
+        glow.addColorStop(0, col);
+        glow.addColorStop(0.35, col);
+        glow.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = glow;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // core
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fillStyle = col;
+        ctx.shadowBlur = b.r * 1.8;
+        ctx.shadowColor = col;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      /* aim indicator while dragging */
+      if (drag) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(56,225,255,0.85)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath();
+        ctx.moveTo(drag.sx, drag.sy);
+        ctx.lineTo(drag.x, drag.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // launch direction arrow (opposite of drag)
+        var adx = drag.sx - drag.x, ady = drag.sy - drag.y;
+        var alen = Math.hypot(adx, ady);
+        if (alen > 1) {
+          var ux = adx / alen, uy = ady / alen;
+          var tipX = drag.sx + ux * Math.min(alen, 90);
+          var tipY = drag.sy + uy * Math.min(alen, 90);
+          ctx.strokeStyle = "rgba(124,92,255,0.9)";
+          ctx.beginPath();
+          ctx.moveTo(drag.sx, drag.sy);
+          ctx.lineTo(tipX, tipY);
+          ctx.stroke();
+          var ang = Math.atan2(uy, ux);
+          ctx.beginPath();
+          ctx.moveTo(tipX, tipY);
+          ctx.lineTo(tipX - 9 * Math.cos(ang - 0.4), tipY - 9 * Math.sin(ang - 0.4));
+          ctx.moveTo(tipX, tipY);
+          ctx.lineTo(tipX - 9 * Math.cos(ang + 0.4), tipY - 9 * Math.sin(ang + 0.4));
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+
+    /* ---------- Main loop ---------- */
+    var last = performance.now();
+    var rafId = null;
+    function loop() {
+      var now = performance.now();
+      var elapsed = (now - last) / 1000;
+      last = now;
+      // clamp frame time so a paused tab doesn't explode the sim
+      if (elapsed > 0.05) elapsed = 0.05;
+
+      if (!state.paused) {
+        var sub = elapsed / SUBSTEPS;
+        for (var s = 0; s < SUBSTEPS; s++) step(sub);
+      }
+      render();
+      document.getElementById("count").textContent = balls.length;
+      rafId = requestAnimationFrame(loop);
+    }
+    rafId = requestAnimationFrame(loop);
+
+    // Safety net: in headless/background environments where rAF never fires,
+    // fall back to setTimeout so the simulation still runs.
+    var fallbackTimer = setInterval(function () {
+      if (performance.now() - last > 200) {
+        if (rafId != null) cancelAnimationFrame(rafId);
+        loop();
+      }
+    }, 100);
+
+    /* ---------- Scenes ---------- */
+    function clearBalls() { balls = []; }
+
+    function galaxy() {
+      balls = [];
+      var M = 3200;                              // central star
+      balls.push(new Ball(cx, cy, 0, 0, M));
+      var count = 70;
+      for (var i = 0; i < count; i++) {
+        var r = 180 + Math.random() * 320;        // keep clear of the star's radius
+        var a = Math.random() * Math.PI * 2;
+        var x = cx + Math.cos(a) * r;
+        var y = cy + Math.sin(a) * r;
+        var v = Math.sqrt(state.G * M / r);      // circular orbital speed
+        // near-circular orbits so the planets revolve steadily
+        v *= 0.96 + Math.random() * 0.08;
+        balls.push(new Ball(x, y, -Math.sin(a) * v, Math.cos(a) * v, 4 + Math.random() * 14));
+      }
+    }
+
+    function binary() {
+      balls = [];
+      var M1 = 1700, M2 = 1700;
+      var sep = 200;
+      var d1 = sep * M2 / (M1 + M2);            // distance of star 1 from COM
+      var d2 = sep * M1 / (M1 + M2);
+      var v1 = M2 * Math.sqrt(state.G / (sep * (M1 + M2)));
+      balls.push(new Ball(cx - d1, cy, 0, -v1, M1));
+      balls.push(new Ball(cx + d2, cy, 0,  v1, M2));
+
+      // outer asteroids orbit the combined mass
+      var Mtot = M1 + M2;
+      for (var i = 0; i < 45; i++) {
+        var r = 360 + Math.random() * 220;
+        var a = Math.random() * Math.PI * 2;
+        var x = cx + Math.cos(a) * r;
+        var y = cy + Math.sin(a) * r;
+        var v = Math.sqrt(state.G * Mtot / r) * (0.9 + Math.random() * 0.18);
+        balls.push(new Ball(x, y, -Math.sin(a) * v, Math.cos(a) * v, 2 + Math.random() * 6));
+      }
+    }
+
+    /* ---------- Mouse / drag-to-launch ---------- */
+    var drag = null;   // {sx, sy, x, y}
+
+    function pos(e) {
+      var rect = canvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+
+    canvas.addEventListener("pointerdown", function (e) {
+      var p = pos(e);
+      drag = { sx: p.x, sy: p.y, x: p.x, y: p.y };
+      canvas.setPointerCapture(e.pointerId);
+    });
+    canvas.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      var p = pos(e);
+      drag.x = p.x; drag.y = p.y;
+    });
+    function endDrag(e) {
+      if (!drag) return;
+      var p = pos(e);
+      var dx = drag.sx - p.x;
+      var dy = drag.sy - p.y;
+      var dist = Math.hypot(dx, dy);
+      if (dist < 6) {
+        // click → place at rest
+        balls.push(new Ball(drag.sx, drag.sy, 0, 0, state.newMass));
+      } else {
+        // slingshot: velocity opposite to drag direction, scaled by distance
+        var power = 0.55;
+        balls.push(new Ball(drag.sx, drag.sy, dx * power, dy * power, state.newMass));
+      }
+      drag = null;
+    }
+    canvas.addEventListener("pointerup", endDrag);
+    canvas.addEventListener("pointercancel", function () { drag = null; });
+
+    /* ---------- Wire up controls ---------- */
+    var sG = document.getElementById("s-g");
+    var sExp = document.getElementById("s-exp");
+    var sMass = document.getElementById("s-mass");
+    var vG = document.getElementById("v-g");
+    var vExp = document.getElementById("v-exp");
+    var vMass = document.getElementById("v-mass");
+
+    sG.addEventListener("input", function () { state.G = parseFloat(sG.value); vG.textContent = state.G.toFixed(2); });
+    sExp.addEventListener("input", function () { state.expansion = parseFloat(sExp.value); vExp.textContent = state.expansion.toFixed(4); });
+    sMass.addEventListener("input", function () { state.newMass = parseInt(sMass.value, 10); vMass.textContent = state.newMass; });
+
+    function bindToggle(id, key) {
+      var el = document.getElementById(id);
+      el.addEventListener("click", function () {
+        el.classList.toggle("on");
+        state[key] = el.classList.contains("on");   // write to the shared state object
+      });
+    }
+    bindToggle("t-trails", "trails");
+    bindToggle("t-merge", "merging");
+
+    var bPause = document.getElementById("b-pause");
+    bPause.addEventListener("click", function () {
+      state.paused = !state.paused;
+      bPause.textContent = state.paused ? "▶ Resume" : "⏸ Pause";
+    });
+
+    document.getElementById("b-clear").addEventListener("click", clearBalls);
+    document.getElementById("b-galaxy").addEventListener("click", galaxy);
+    document.getElementById("b-binary").addEventListener("click", binary);
+
+    // Keyboard shortcuts
+    window.addEventListener("keydown", function (e) {
+      if (e.target.tagName === "INPUT") return;
+      if (e.key === " " || e.code === "Space") {
+        e.preventDefault();
+        bPause.click();
+      } else if (e.key.toLowerCase() === "c") {
+        clearBalls();
+      } else if (e.key.toLowerCase() === "g") {
+        galaxy();
+      } else if (e.key.toLowerCase() === "b") {
+        binary();
+      }
+    });
+
+    /* ---------- Start with the Galaxy scene ---------- */
+    galaxy();
+  })();
+  </script>
+</body>
+</html>
